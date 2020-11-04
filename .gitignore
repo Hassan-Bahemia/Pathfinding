@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+
+pathfinder/.idea/.idea.pathfinder/.idea/
+
+pathfinder/.vs/pathfinder/v16/
+
+*.iml
