@@ -105,7 +105,7 @@ bool PathFind(vector<NODE>& graph, int nStart, int nGoal, vector<int>& path)
 				open.push_back(endNode);
 				}
 			}
-			// Wecan now close the current graph...
+			// We can now close the current graph...
 			graph[curNode].closed = true;
 			open.erase(iCurrent);
 		}
