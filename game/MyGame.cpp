@@ -3,11 +3,27 @@
 
 #pragma warning (disable: 4244)
 
-float Coords[][2] = { 
+char* CMyGame::m_tileLayout[12] =
+{
+	"XXXXXXXXXXXXXXXXXXXX",
+	"X     XX        XX X",
+	"X         XXXX     X",
+	"X     XX  XXXX  XX X",
+	"XXXXX XX        XX X",
+	"XXXXX XXXXXXXXX XX X",
+	"X     XXXXXXXXX XX X",
+	"X  XXXXX     XX    X",
+	"X XXXXXX XX  XXXXX X",
+	"X XXX    XX  XXXXX X",
+	"X                  X",
+	"XXXXXXXXXXXXXXXXXXXX",
+};
+
+float Coords[][2] = {
 	{ 352, 160 },
 	{ 480, 160 },
 	{ 608, 288 },
-	{608, 96 },
+	{ 608, 96 },
 	{ 992, 288 },
 	{ 912, 96 },
 	{ 992, 160 },
@@ -21,8 +37,9 @@ float Coords[][2] = {
 	{ 512, 672 },
 	{ 96, 672 },
 	{ 96, 416 },
-	{ 352,416 }, 
-}; 
+	{ 352, 416 },
+};
+
 int Connections[][2] = {
 	{ 0, 1 },
 	{ 0, 17 },
@@ -46,83 +63,83 @@ int Connections[][2] = {
 	{ 13, 14 },
 	{ 14, 15 },
 	{ 15, 16 },
-	{ 16, 17 }, };
-
-char* CMyGame::m_tileLayout[12] =
-{
-	"XXXXXXXXXXXXXXXXXXXX",
-	"X     XX        XX X",
-	"X         XXXX     X",
-	"X     XX  XXXX  XX X",
-	"XXXXX XX        XX X",
-	"XXXXX XXXXXXXXX XX X",
-	"X     XXXXXXXXX XX X",
-	"X  XXXXX     XX    X",
-	"X XXXXXX XX  XXXXX X",
-	"X XXX    XX  XXXXX X",
-	"X                  X",
-	"XXXXXXXXXXXXXXXXXXXX",
+	{ 16, 17 },
 };
 
-bool PathFind(vector<NODE>& graph, int nStart, int nGoal, vector<int>& path) 
-{	
+/////////////////////////////////////////////////////
+// Dijkstra algorithm implementation
 
-		list<int> open;
-		// mark all nodes in the graph as unvisited
-		for (unsigned i = 0; i < graph.size(); i++)
+bool PathFind(vector<NODE>& graph, int nStart, int nGoal, vector<int>& path)
+{
+	list<int> open;
+
+	// mark all nodes in the graph as unvisited
+	for (unsigned i = 0; i < graph.size(); i++)
+		graph[i].open = false;
+
+	// open the Start node
+	graph[nStart].costSoFar = 0;
+	graph[nStart].nConnection = -1;
+	graph[nStart].open = true;
+	open.push_back(nStart);
+
+	while (open.size() > 0)
+	{
+		// Find the element with the smallest costSoFar
+		// iMin is the iterator (pointer) to its position in the opn list
+		list<int>::iterator iCurrent = min_element(open.begin(), open.end(), [graph](int i, int j) -> bool {
+			return graph[i].costSoFar < graph[j].costSoFar;
+			});
+		int curNode = *iCurrent;
+		float coastSoFar = graph[curNode].costSoFar;
+
+		// If the end node found, then terminate
+		if (curNode == nGoal)
+			break;
+
+		// Otherwise, visit all the connections
+		for (CONNECTION conn : graph[curNode].conlist)
 		{
-			graph[i].open = false;
-		}
-		// open the start node
-		graph[nStart].open = true;
-		graph[nStart].costSoFar = 0;
-		graph[nStart].nConnection = -1;
-		open.push_back(nStart);
-		while(open.size() > 0)
-		{
-			// Select the current node
-			list<int>::iterator iCurrent = min_element(open.begin(), open.end(), [graph](int i, int j) -> bool {
-				return graph[i].costSoFar < graph[j].costSoFar;
-				});
-			int curNode = *iCurrent;
-			// Found the goal node?
-			if(curNode == nGoal)
-				break;
-			for(CONNECTION connection : graph[curNode].conlist)
+			int endNode = conn.nEnd;
+			float newCostSoFar = coastSoFar + conn.cost;
+
+			// for open nodes, ignore if the current route worse then the route already found
+			if (graph[endNode].open && graph[endNode].costSoFar <= newCostSoFar)
+				continue;
+
+			// Wow, we've found a better route!
+			graph[endNode].costSoFar = newCostSoFar;
+			graph[endNode].nConnection = curNode;
+
+			// if unvisited yet, add to the open list
+			if (!graph[endNode].open)
 			{
-				int endNode = connection.nEnd;
-				float newCostSoFar = graph[curNode].costSoFar + connection.cost;
-				// for open nodes, ignore if the current route worse then the old one
-				if (graph[endNode].open && graph[endNode].costSoFar <= newCostSoFar)
-					continue;
-				// Wow, we've found a better route!
-				graph[endNode].costSoFar = newCostSoFar;
-				graph[endNode].nConnection = curNode;
-				// if unvisited yet, add to the open list
-				if (!graph[endNode].open) 
-				{ 
-				graph[endNode].open = true; 
+				graph[endNode].open = true;
 				open.push_back(endNode);
-				}
 			}
-			// We can now close the current graph...
-			graph[curNode].closed = true;
-			open.erase(iCurrent);
-		}
-		// Collect the path from the generated graph data
-		if(open.size() == 0)
-			return false;  
-		// path not found! 
-		int i = nGoal;
-		while(graph[i].nConnection >= 0)
-		{
-			path.push_back(i);
-			i = graph[i].nConnection;
-		}
-		path.push_back(i);
 
-		reverse(path.begin(), path.end());
-		return true;
+			// in Dijkstra, this should never be a closed node
+		}
+
+		// We can now close the current graph...
+		graph[curNode].closed = true;
+		open.erase(iCurrent);
+	}
+
+	// Collect the path from the generated graph data
+	if (open.size() == 0)
+		return false;		// path not found!
+
+	int i = nGoal;
+	while (graph[i].nConnection >= 0)
+	{
+		path.push_back(i);
+		i = graph[i].nConnection;
+	}
+	path.push_back(i);
+
+	reverse(path.begin(), path.end());
+	return true;
 }
 
 CMyGame::CMyGame(void) :
@@ -132,9 +149,11 @@ CMyGame::CMyGame(void) :
 	m_npc.LoadAnimation("Spider64.png", "idle", CSprite::Sheet(4, 2).Col(2).From(0).To(1));
 	m_npc.SetAnimation("idle", 4);
 
-	// create graph structure -nodes
-	for (float* coord : Coords)m_graph.push_back(NODE{ CVector(coord[0], coord[1]) });
-	// create graph structure -connections
+	// create graph structure - nodes
+	for (float* coord : Coords)
+		m_graph.push_back(NODE{ CVector(coord[0], coord[1]) });
+
+	// create graph structure - connections
 	for (int* conn : Connections)
 	{
 		int ind1 = conn[0];
@@ -142,6 +161,7 @@ CMyGame::CMyGame(void) :
 		NODE& node1 = m_graph[ind1];
 		NODE& node2 = m_graph[ind2];
 		float dist = Distance(node1.pos, node2.pos);
+
 		node1.conlist.push_back(CONNECTION{ ind2, dist });
 		node2.conlist.push_back(CONNECTION{ ind1, dist });
 	}
@@ -182,15 +202,15 @@ void CMyGame::OnUpdate()
 			m_npc.SetRotation(0);
 		}
 	}
-	
+
 	m_npc.Update(t);
 }
 
 void CMyGame::OnDraw(CGraphics* g)
 {
 	for (NODE n : m_graph)
-	for (CONNECTION c : n.conlist)
-	g->DrawLine(n.pos, m_graph[c.nEnd].pos, CColor::Black());
+		for (CONNECTION c : n.conlist)
+			g->DrawLine(n.pos, m_graph[c.nEnd].pos, CColor::Black());
 	m_nodes.for_each(&CSprite::Draw, g);
 	m_tiles.for_each(&CSprite::Draw, g);
 	m_npc.Draw(g);
@@ -202,17 +222,6 @@ void CMyGame::OnDraw(CGraphics* g)
 // one time initialisation
 void CMyGame::OnInitialize()
 {
-	// Create Nodes
-
-	int i = 0;
-	for (NODE n : m_graph)
-	{
-		stringstream s;
-		s << i++;
-		m_nodes.push_back(new CSpriteOval(n.pos, 12, CColor::White(), CColor::Black(), 0));
-		m_nodes.push_back(new CSpriteText(n.pos, "arial.ttf", 14, s.str(), CColor::Black(), 0));
-	}
-
 	// Create Tiles
 	for (int y = 0; y < 12; y++)
 		for (int x = 0; x < 20; x++)
@@ -229,10 +238,20 @@ void CMyGame::OnInitialize()
 			if (nTile == 5 && x < 20 && y > 0 && m_tileLayout[y - 1][x + 1] == ' ') nTile = 13;
 			if (nTile == 5 && x > 0 && y < 11 && m_tileLayout[y + 1][x - 1] == ' ') nTile = 11;
 			if (nTile == 5 && x < 20 && y < 11 && m_tileLayout[y + 1][x + 1] == ' ') nTile = 10;
-			
+
 			nTile--;
 			m_tiles.push_back(new CSprite(x * 64.f + 32.f, y * 64.f + 32.f, new CGraphics("tiles.png", 3, 5, nTile % 3, nTile / 3), 0));
 		}
+
+	// Create Nodes
+	int i = 0;
+	for (NODE n : m_graph)
+	{
+		stringstream s;
+		s << i++;
+		m_nodes.push_back(new CSpriteOval(n.pos, 12, CColor::White(), CColor::Black(), 0));
+		m_nodes.push_back(new CSpriteText(n.pos, "arial.ttf", 14, s.str(), CColor::Black(), 0));
+	}
 }
 
 // called when a new game is requested (e.g. when F2 pressed)
@@ -284,47 +303,67 @@ void CMyGame::OnKeyUp(SDLKey sym, SDLMod mod, Uint16 unicode)
 /////////////////////////////////////////////////////
 // Mouse Events Handlers
 
-void CMyGame::OnMouseMove(Uint16 x,Uint16 y,Sint16 relx,Sint16 rely,bool bLeft,bool bRight,bool bMiddle)
+void CMyGame::OnMouseMove(Uint16 x, Uint16 y, Sint16 relx, Sint16 rely, bool bLeft, bool bRight, bool bMiddle)
 {
 }
 
 void CMyGame::OnLButtonDown(Uint16 x, Uint16 y)
 {
-	CVector v(x, y); // destination
+	CVector v(x, y);	// destination
+
 	// check if the move is legal
-	if(m_tileLayout[y/ 64][x/ 64] != ' ')
-		return; // cannot go into a wall!
+	if (m_tileLayout[y / 64][x / 64] != ' ')
+		return;	// cannot go into a wall!
+
 	// find the first node: the closest to the NPC
-	vector<NODE>::iterator iFirst = min_element(m_graph.begin(), m_graph.end(), [this](NODE& n1, NODE& n2) -> bool{return Distance(n1.pos, m_npc.GetPos()) < Distance(n2.pos, m_npc.GetPos());});int nFirst = iFirst -m_graph.begin();
+	vector<NODE>::iterator iFirst =
+		min_element(m_graph.begin(), m_graph.end(), [this](NODE& n1, NODE& n2) -> bool {
+		return Distance(n1.pos, m_npc.GetPos()) < Distance(n2.pos, m_npc.GetPos());
+			});
+
 	// find the last node: the closest to the destination
-	vector<NODE>::iterator iLast = min_element(m_graph.begin(), m_graph.end(), [v](NODE&n1, NODE&n2) -> bool{return Distance(n1.pos, v) < Distance(n2.pos, v);});int nLast = iLast -m_graph.begin();
+	vector<NODE>::iterator iLast =
+		min_element(m_graph.begin(), m_graph.end(), [v](NODE& n1, NODE& n2) -> bool {
+		return Distance(n1.pos, v) < Distance(n2.pos, v);
+			});
+
+	int nFirst = iFirst - m_graph.begin();
+	int nLast = iLast - m_graph.begin();
+
+
 	// remove the current way points and reset the NPC
-	if(!m_waypoints.empty()){m_waypoints.clear();m_npc.SetVelocity(0, 0);
+	if (!m_waypoints.empty())
+	{
+		m_waypoints.clear();
+		m_npc.SetVelocity(0, 0);
 	}
+
 	// call the path finding algorithm to complete the waypoints
 	vector<int> path;
-	if(PathFind(m_graph, nFirst, nLast, path))
+	if (PathFind(m_graph, nFirst, nLast, path))
 	{
-		for(int i : path)m_waypoints.push_back(m_graph[i].pos);m_waypoints.push_back(v);
+		for (int i : path)
+			m_waypoints.push_back(m_graph[i].pos);
+		m_waypoints.push_back(v);
 	}
 }
 
-void CMyGame::OnLButtonUp(Uint16 x,Uint16 y)
+void CMyGame::OnLButtonUp(Uint16 x, Uint16 y)
 {
 }
 
-void CMyGame::OnRButtonDown(Uint16 x,Uint16 y)
+void CMyGame::OnRButtonDown(Uint16 x, Uint16 y)
 {
 }
 
-void CMyGame::OnRButtonUp(Uint16 x,Uint16 y)
+void CMyGame::OnRButtonUp(Uint16 x, Uint16 y)
 {
 }
 
-void CMyGame::OnMButtonDown(Uint16 x,Uint16 y)
+void CMyGame::OnMButtonDown(Uint16 x, Uint16 y)
 {
 }
 
-void CMyGame::OnMButtonUp(Uint16 x,Uint16 y)
+void CMyGame::OnMButtonUp(Uint16 x, Uint16 y)
 {
 }
